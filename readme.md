@@ -75,6 +75,23 @@ WebPのアニメーションファイルをmp4に変換します
 - 短いアニメーションファイルをターゲットとしているため、長い動画の処理には向いていません！！
 - 当たり前ですが、mp4に変換したあとでpng画像化を繰り返すと徐々に画質が劣化していきます
 
+## サンプル
+注意：ここで表示する動画はreadmeで表示出来るようにgifに変換しているため画質が落ちています
+- 10fpsのmp4動画に変換  
+    docs/sample_001.webpを入力  
+    変換ボタンで、docs/sample_001_10fps.mp4を生成  
+    ![WebpAnim2Mp4-image](docs/sample_001_10fps.gif)
+- 30fpsのloopありmp4動画に変換  
+    docs/sample_001.webpを入力  
+    変換ボタンで、docs/sample_001_30fps_loop.mp4を生成  
+    ![WebpAnim2Mp4-image](docs/sample_001_30fps_loop.gif)
+- 4枚の画像を繰り返してmp4動画に結合  
+    docs/sample_001.png - sample_004.pngを3回入力  
+    結合ボタンで、docs/sample_001_concati_2fps.mp4を生成  
+    指定方法  
+    ![WebpAnim2Mp4-image](docs/WebpAnim2Mp4-image002.jpg)
+    ![WebpAnim2Mp4-image](docs/sample_001_concati_2fps.gif)
+
 ## 変更履歴
 - 0.2.0 画像化と結合機能を一新、他
 - 0.1.1 最終フレームの画像化、結合機能を追加、他
