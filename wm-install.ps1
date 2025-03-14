@@ -32,7 +32,7 @@ Write-Host "----------------------------------------"
 # activate
 . .\venv\Scripts\activate.ps1
 # install python library
-python -m pip install PyQt5 imageio opencv-python
+python -m pip install PyQt5 imageio[ffmpeg,pyav] opencv-python
 
 Write-Host "----------------------------------------"
 Write-Host "create shortcut file."

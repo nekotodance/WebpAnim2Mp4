@@ -6,21 +6,29 @@ import numpy as np
 from PyQt5.QtGui import QDragEnterEvent, QDropEvent, QIcon
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog,
-    QSpinBox, QCheckBox, QListWidget, QHBoxLayout, QStatusBar, QMainWindow
+    QSpinBox, QCheckBox, QListWidget, QHBoxLayout, QStatusBar, QMainWindow,
+    QMessageBox
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QEvent
 import pvsubfunc
+import math
 
 WINDOW_TITLE = "WebP Anim to MP4 Converter"
 SETTINGS_FILE = "WebpAnim2Mp4.json"
 GEOMETRY_X = "geometry-x"
 GEOMETRY_Y = "geometry-y"
+GEOMETRY_W = "geometry-w"
+GEOMETRY_H = "geometry-h"
 LOOP_CHECKED = "loop-checked"
 DROP_CHECKED = "drop-checked"
 FRAME_RATE = "frame-rate"
 APP_WIDTH = 480
 APP_HEIGHT = 320
 DEF_FRAME_RATE = 15
+MOVIE_TOOLONG = 1200    #このframe数を超える動画が入力された場合警告を行う
+
+SUPPORT_INPUT_EXT = (".png", ".jpg", ".webp", ".mp4")
+SUPPORT_MOVIE_EXT = (".webp", ".mp4")
 
 #良く使いそうなフレームレートをボタンで選択可能としておく
 FRAME_LIST = (10,15,30,60)
@@ -40,8 +48,27 @@ class WebpAnim2Mp4(QMainWindow):
         self.setCentralWidget(self.centralWidget)
         self.centralWidget.setStyleSheet("color: white; font-size: 14px; background-color: #202224;")
         self.layout = QVBoxLayout(self.centralWidget)
+        self.listLayout = QHBoxLayout()
         self.file_list = QListWidget(self)  # ファイルリスト
-        self.layout.addWidget(self.file_list)
+        self.listLayout.addWidget(self.file_list)
+        self.listBtnLayout = QVBoxLayout()
+        self.button_up = QPushButton("↑", self)
+        self.button_up.setFixedSize(40,40)
+        self.listBtnLayout.addWidget(self.button_up)
+        self.button_down = QPushButton("↓", self)
+        self.button_down.setFixedSize(40,40)
+        self.listBtnLayout.addWidget(self.button_down)
+        self.listBtnLayout.addStretch()
+        self.button_delete = QPushButton("del", self)
+        self.button_delete.setFixedSize(40,40)
+        self.listBtnLayout.addWidget(self.button_delete)
+        self.listBtnLayout.addStretch()
+        self.button_clear = QPushButton('clr')
+        self.button_clear.setFixedSize(40,40)
+        self.listBtnLayout.addWidget(self.button_clear)
+        self.listBtnLayout.addStretch()
+        self.listLayout.addLayout(self.listBtnLayout)
+        self.layout.addLayout(self.listLayout)
 
         self.settingLayout1 = QHBoxLayout()
         self.settingLayout1.addStretch()
@@ -59,7 +86,7 @@ class WebpAnim2Mp4(QMainWindow):
         self.layout.addLayout(self.settingLayout1)
 
         self.settingLayout2 = QHBoxLayout()
-        self.drop_checkbox = QCheckBox("drop last frame", self)
+        self.drop_checkbox = QCheckBox("drop first frame", self)
         self.settingLayout2.addWidget(self.drop_checkbox)
         self.settingLayout2.addStretch()
         self.loop_checkbox = QCheckBox("loop", self)
@@ -101,23 +128,26 @@ class WebpAnim2Mp4(QMainWindow):
             """
         )
         self.buttonLayout.addWidget(self.button_convert)
-        self.button_clear = QPushButton('クリア')
-        self.button_clear.setFixedHeight(40)  # ボタンの高さを調整
-        self.buttonLayout.addWidget(self.button_clear)
         self.layout.addLayout(self.buttonLayout)
         self.setLayout(self.layout)
 
+        self.file_list.installEventFilter(self)
+        self.file_list.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
+
+        self.button_up.clicked.connect(self.list_item_moveup)
+        self.button_down.clicked.connect(self.list_item_movedown)
+        self.button_delete.clicked.connect(self.list_item_delete)
         self.button_concatinate.clicked.connect(self.concatinate_files)
-        self.button_lastpic.clicked.connect(self.to_file_lastpic)
+        self.button_lastpic.clicked.connect(self.to_picfile)
         self.button_convert.clicked.connect(self.convert_files)
-        self.button_clear.clicked.connect(self.clear_files)
+        self.button_clear.clicked.connect(self.clear_lists)
         for i in range(len(FRAME_LIST)):
             self.convertBtns[i].clicked.connect(lambda _, i=i: self.fps_spinbox.setValue(FRAME_LIST[i]))
 
         self.statusBar = QStatusBar()
         self.statusBar.setStyleSheet("color: white; font-size: 14px; background-color: #31363b;")
         self.setStatusBar(self.statusBar)
-        self.statusBar.showMessage(f"WebPのアニメーションファイルをドラッグドロップしてください")
+        self.statusBar.showMessage(f"動画や画像ファイルをドラッグドロップしてください")
 
         #設定ファイルがあれば読み込み
         if os.path.exists(SETTINGS_FILE):
@@ -134,22 +164,85 @@ class WebpAnim2Mp4(QMainWindow):
             event.acceptProposedAction()
 
     def dropEvent(self, event):
-        #連結を考慮していちいちクリアするのをやめる
-        #self.file_list.clear()
-        #self.file_paths = []
+        listnum = len(event.mimeData().urls())
+        dropnum = 0
         for url in event.mimeData().urls():
             file_path = url.toLocalFile()
-            #連結を考慮して重複チェックもやめる（同じファイルを連結する意味あるかな？）
-            #if file_path.lower().endswith(".webp") and file_path not in self.file_paths:
-            if file_path.lower().endswith(".webp"):
+            if file_path.lower().endswith(SUPPORT_INPUT_EXT):
                 self.file_paths.append(file_path)
                 self.file_list.addItem(os.path.basename(file_path))
+                dropnum += 1
+        self.file_list.scrollToItem(self.file_list.item(self.file_list.count() - 1))
+
+        mes = f"{dropnum}ファイルがドロップされました"
+        if dropnum == 0:
+            exts = ""
+            for ext in SUPPORT_INPUT_EXT:
+                exts += ext.replace(".","") + ","
+            mes = f"エラー: {exts[:-1]}ファイル以外は対応していません"
+        elif dropnum != listnum:
+            mes += f"（{listnum-dropnum}ファイルは対象外）"
+        self.statusBar.showMessage(mes)
+
+    def list_item_moveup(self):
+        selected_items = self.file_list.selectedItems()
+        if not selected_items: return
+
+        selected_rows = sorted([self.file_list.row(item) for item in selected_items])
+        if selected_rows[0] == 0: return
+
+        for row in selected_rows:
+            item = self.file_list.takeItem(row)
+            self.file_list.insertItem(row - 1, item)
+            self.file_list.setCurrentRow(row - 1)
+            item = self.file_paths.pop(row)
+            self.file_paths.insert(row - 1, item)
+
+    def list_item_movedown(self):
+        selected_items = self.file_list.selectedItems()
+        if not selected_items: return
+
+        selected_rows = sorted([self.file_list.row(item) for item in selected_items], reverse=True)
+        if selected_rows[0] == self.file_list.count() - 1: return
+
+        for row in selected_rows:
+            item = self.file_list.takeItem(row)
+            self.file_list.insertItem(row + 1, item)
+            self.file_list.setCurrentRow(row + 1)
+            item = self.file_paths.pop(row)
+            self.file_paths.insert(row + 1, item)
+
+    def list_item_delete(self):
+        selected_items = self.file_list.selectedItems()
+        if not selected_items: return
+
+        selected_rows = sorted([self.file_list.row(item) for item in selected_items], reverse=True)
+        for row in selected_rows:
+            self.file_list.takeItem(row)
+            self.file_paths.pop(row)
+
+        self.statusBar.showMessage(f"{len(selected_rows)}ファイルをリストから削除しました")
 
     def error_check(self):
         result = False
         if not self.file_paths:
             self.statusBar.showMessage(f"エラー: ファイルが選択されていません")
             return True
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.KeyPress:
+            keyid = event.key()
+            if keyid in {Qt.Key_Delete, Qt.Key_Backspace, Qt.Key_R, Qt.Key_Up, Qt.Key_W, Qt.Key_Down, Qt.Key_S, Qt.Key_C}:
+                if keyid in (Qt.Key_Delete, Qt.Key_Backspace, Qt.Key_R):
+                    self.list_item_delete()
+                elif keyid in (Qt.Key_Up, Qt.Key_W):
+                    self.list_item_moveup()
+                elif keyid in (Qt.Key_Down, Qt.Key_S):
+                    self.list_item_movedown()
+                elif keyid == Qt.Key_C:
+                    self.clear_lists()
+                return True #eventを消費
+        return super().eventFilter(obj, event)
 
     def proc_start(self):
         self.setEnabled(False)
@@ -163,78 +256,24 @@ class WebpAnim2Mp4(QMainWindow):
         if self.error_check(): return
         self.proc_start()
         fps = self.fps_spinbox.value()
+        count = 0 
         for file_path in self.file_paths:
             self.statusBar.showMessage(f"{os.path.basename(file_path)}の変換中")
             QApplication.processEvents()
-            self.convert_webp_to_mp4(file_path, fps)
-        self.proc_end(f"変換完了！")
+            if self.convert_webp_to_mp4(file_path, fps):
+                count += 1
+        mes = f"変換完了！"
+        if count == 0:
+            mes = f"エラー: webpファイルが存在しません"
+        elif count != len(self.file_paths):
+            mes = f"{len(self.file_paths)}ファイル中、{count}ファイルを変換しました"
+        self.proc_end(mes)
 
     def convert_webp_to_mp4(self, file_path, fps):
-        frames = imageio.mimread(file_path)
-        if not frames: return
-
-        sloop = ""
-        # ループ処理: 0,1,2...30 → 0,1,2...30,29,28...2,1 に変換
-        if self.loop_checkbox.isChecked():
-            frames += frames[-2::-1]  # 逆順のフレームを追加（最後のフレームは重複しないよう -2 から）
-            sloop = "_loop"
-
-        height, width, _ = frames[0].shape
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-
-        output_file = os.path.splitext(file_path)[0] + f"_{fps}fps{sloop}.mp4"
-        out = cv2.VideoWriter(output_file, fourcc, fps, (width, height))
-
-        for frame in frames:
-            frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
-            out.write(frame)
-
-        out.release()
-
-    def clear_files(self):
-        self.file_list.clear()
-        self.file_paths = []
-        self.statusBar.showMessage(f"リストをクリアしました")
-
-    def concatinate_files(self):
-        if self.error_check(): return
-        self.proc_start()
-        fourcc = None
-        fps = self.fps_spinbox.value()
-
-        sdrop = ""
-        if self.drop_checkbox.isChecked():
-            sdrop = "_drop"
-        isLastFile = False
-        i = 0
-        for file_path in self.file_paths:
-            if i == len(self.file_paths) - 1:
-                isLastFile = True
-            i += 1
-            self.statusBar.showMessage(f"{os.path.basename(file_path)}の結合中")
-            QApplication.processEvents()
-            frames = imageio.mimread(file_path)
-            if not frames: continue # 動画でないファイルであればスキップ
-            if fourcc == None:
-                height, width, _ = frames[0].shape
-                fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-                output_file = os.path.splitext(file_path)[0] + f"_concati_{fps}fps{sdrop}.mp4"
-                out = cv2.VideoWriter(output_file, fourcc, fps, (width, height))
-            j = 0
-            for frame in frames:
-                if not isLastFile:
-                    if self.drop_checkbox.isChecked() and j == len(frames) - 1:
-                        break #最終フレームをスキップ（ただし最終ファイルは除く）
-                j += 1
-                frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
-                out.write(frame)
-
-        out.release()
-        self.proc_end(f"結合完了！")
-
-    def convert_webp_to_mp4(self, file_path, fps):
-        frames = imageio.mimread(file_path)
-        if not frames: return
+        #mp4変換はwebpで複数フレームを保持する場合のみ
+        if not file_path.lower().endswith(".webp"): return False
+        frames = imageio.mimread(file_path, memtest=False)
+        if not frames: return False
 
         sloop = ""
         # ループ処理: 0,1,2...30 → 0,1,2...30,29,28...2,1 に変換
@@ -245,39 +284,142 @@ class WebpAnim2Mp4(QMainWindow):
 
         height, width, _ = frames[0].shape
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-
         output_file = os.path.splitext(file_path)[0] + f"_{fps}fps{sloop}.mp4"
         out = cv2.VideoWriter(output_file, fourcc, fps, (width, height))
 
         for frame in frames:
             frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
             out.write(frame)
-
         out.release()
+        return True
 
-    def to_file_lastpic(self):
+    def clear_lists(self):
+        self.file_list.clear()
+        self.file_paths = []
+        self.statusBar.showMessage(f"リストをクリアしました")
+
+    def concatinate_files(self):
         if self.error_check(): return
+        if self.cansel_movie_toolong(self.file_paths): return
         self.proc_start()
+        fps = self.fps_spinbox.value()
+        sdrop = ""
+        if self.drop_checkbox.isChecked():
+            sdrop = "_drop"
+
+        #動画サイズは先頭ファイルで決定し、他は全て同じとする
+        file_path = self.file_paths[0]
+        if file_path.lower().endswith(SUPPORT_MOVIE_EXT):
+            frames = imageio.mimread(file_path, memtest=False)
+            height, width, _ = frames[0].shape
+        else:
+            frame = cv2.imread(file_path)
+            height, width, _ = frame.shape
+
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        output_file = os.path.splitext(file_path)[0] + f"_concati_{fps}fps{sdrop}.mp4"
+        out = cv2.VideoWriter(output_file, fourcc, fps, (width, height))
+
+        isFirstFile = True
+        for file_path in self.file_paths:
+            self.statusBar.showMessage(f"{os.path.basename(file_path)}の結合中")
+            QApplication.processEvents()
+
+            if file_path.lower().endswith(SUPPORT_MOVIE_EXT):
+                frames = imageio.mimread(file_path, memtest=False)
+                if not frames: continue # 動画でないファイルであればスキップ
+
+                isFirstFrame = True
+                for frame in frames:
+                    if not isFirstFile and isFirstFrame:
+                        isFirstFrame = False
+                        continue
+                    frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
+                    out.write(frame)
+            else:
+                frame = cv2.imread(file_path)
+                out.write(frame)
+
+            isFirstFile = False
+        out.release()
+        self.proc_end(f"結合完了！")
+
+    def to_picfile(self):
+        if self.error_check(): return
+        if self.cansel_movie_toolong(self.file_paths): return
+        self.proc_start()
+        count = 0 
         for file_path in self.file_paths:
             self.statusBar.showMessage(f"{os.path.basename(file_path)}の処理中")
             QApplication.processEvents()
-            self.convert_webp_to_lastpng(file_path)
-        self.proc_end(f"処理完了！")
+            if self.convert_movie_to_png(file_path):
+                count += 1
+        mes = f"処理完了！"
+        if count == 0:
+            mes = f"エラー: webp,mp4ファイルが存在しません"
+        elif count != len(self.file_paths):
+            mes = f"{len(self.file_paths)}ファイル中、{count}ファイルを処理しました"
+        self.proc_end(mes)
 
-    def convert_webp_to_lastpng(self, file_path):
-        frames = imageio.mimread(file_path)
-        if not frames: return
+    def cansel_movie_toolong(self, file_paths):
+        result = False
+        self.statusBar.showMessage(f"入力ファイルをチェック中")
+        QApplication.processEvents()
+        for file_path in self.file_paths:
+            if not file_path.lower().endswith(SUPPORT_MOVIE_EXT): continue
+            #framenum = len(imageio.mimread(file_path, memtest=False))
+            reader = imageio.get_reader(file_path)
+            framenum = reader.get_length()
+            #ファイルによってinfが返ってくるので、ちょっと時間がかかるがちゃんとカウントする
+            if math.isinf(framenum):
+                framenum = sum(1 for _ in reader)
+            #print(f"{framenum} frame")
+            if framenum > MOVIE_TOOLONG:
+                self.statusBar.showMessage(f"デカいファイルあり！中断するのをお勧めします！！")
+                QApplication.processEvents()
+                result = True
+                break
+        if result:
+            msg01 = f"{MOVIE_TOOLONG}frameを超える動画が含まれます。処理を継続しますか？"
+            msg02 = f"長い動画を扱う設計ではないのでメモリを大量に使用しますし、"
+            msg03 = f"尋常ではない時間がかかる可能性があります。警告しましたよ？"
+            msg04 = f"（4000フレーム程度でもメモリを数GB使用、数分かかります）"
+            response = QMessageBox.warning(self, "警告", f"{msg01}\n\n{msg02}\n{msg03}\n{msg04}", QMessageBox.Yes | QMessageBox.No)
+            if response != QMessageBox.Yes:
+                self.statusBar.showMessage(f"キャンセルしました")
+                return True
 
-        height, width, _ = frames[0].shape
-        lastframe = len(frames) - 1
-        output_file = os.path.splitext(file_path)[0] + f"_{lastframe}frame.png"
-        imageio.imwrite(output_file, frames[lastframe])
+        return False
+
+    def convert_movie_to_png(self, file_path):
+        #画像化はwebpで複数フレームを保持する場合のみ
+        if not file_path.lower().endswith(SUPPORT_MOVIE_EXT): return False
+        frames = imageio.mimread(file_path, memtest=False)
+        if not frames: return False
+
+        padding = len(str(len(frames)))
+        if padding < 3: padding = 3
+        fbase = os.path.splitext(file_path)[0]
+        fext = (os.path.splitext(os.path.basename(file_path))[1]).replace(".", "_")
+        picdir = f"{fbase}{fext}_pics"
+        if not os.path.exists(picdir):
+            os.mkdir(picdir)
+        flameno = 0
+        picname = f"{os.path.splitext(os.path.basename(file_path))[0]}"
+        picname = f"{picdir}/{picname}_frame"
+        for frame in frames:
+            output_file = f"{picname}{str(flameno).zfill(padding)}.png"
+            imageio.imwrite(output_file, frame)
+            flameno += 1
+        return True
 
     def load_settings(self):
         geox = pvsubfunc.read_value_from_config(SETTINGS_FILE, GEOMETRY_X)
         geoy = pvsubfunc.read_value_from_config(SETTINGS_FILE, GEOMETRY_Y)
-        if not any(val is None for val in [geox, geoy]):
-            self.setGeometry(geox, geoy, APP_WIDTH, APP_HEIGHT)
+        geow = pvsubfunc.read_value_from_config(SETTINGS_FILE, GEOMETRY_W)
+        geoh = pvsubfunc.read_value_from_config(SETTINGS_FILE, GEOMETRY_H)
+        if not any(val is None for val in [geox, geoy, geow, geoh]):
+            self.setGeometry(geox, geoy, geow, geoh)
         dropchecked = pvsubfunc.read_value_from_config(SETTINGS_FILE, DROP_CHECKED)
         if dropchecked != None:
             self.drop_checkbox.setChecked(dropchecked)
@@ -291,6 +433,8 @@ class WebpAnim2Mp4(QMainWindow):
     def save_settings(self):
         pvsubfunc.write_value_to_config(SETTINGS_FILE, GEOMETRY_X, self.geometry().x())
         pvsubfunc.write_value_to_config(SETTINGS_FILE, GEOMETRY_Y, self.geometry().y())
+        pvsubfunc.write_value_to_config(SETTINGS_FILE, GEOMETRY_W, self.geometry().width())
+        pvsubfunc.write_value_to_config(SETTINGS_FILE, GEOMETRY_H, self.geometry().height())
         pvsubfunc.write_value_to_config(SETTINGS_FILE, DROP_CHECKED, self.drop_checkbox.isChecked())
         pvsubfunc.write_value_to_config(SETTINGS_FILE, LOOP_CHECKED, self.loop_checkbox.isChecked())
         pvsubfunc.write_value_to_config(SETTINGS_FILE, FRAME_RATE, self.fps_spinbox.value())
