@@ -19,6 +19,7 @@ GEOMETRY_X = "geometry-x"
 GEOMETRY_Y = "geometry-y"
 GEOMETRY_W = "geometry-w"
 GEOMETRY_H = "geometry-h"
+REVERSE_CHECKED = "reverse-checked"
 LOOP_CHECKED = "loop-checked"
 DROP_CHECKED = "drop-checked"
 FRAME_RATE = "frame-rate"
@@ -89,6 +90,8 @@ class WebpAnim2Mp4(QMainWindow):
         self.drop_checkbox = QCheckBox("drop first frame", self)
         self.settingLayout2.addWidget(self.drop_checkbox)
         self.settingLayout2.addStretch()
+        self.reverse_checkbox = QCheckBox("reverse", self)
+        self.settingLayout2.addWidget(self.reverse_checkbox)
         self.loop_checkbox = QCheckBox("loop", self)
         self.settingLayout2.addWidget(self.loop_checkbox)
         self.layout.addLayout(self.settingLayout2)
@@ -254,33 +257,38 @@ class WebpAnim2Mp4(QMainWindow):
 
     def convert_files(self):
         if self.error_check(): return
+        if self.cansel_movie_toolong(self.file_paths): return
         self.proc_start()
         fps = self.fps_spinbox.value()
+        filenum = len(self.file_paths)
         count = 0 
         for file_path in self.file_paths:
-            self.statusBar.showMessage(f"{os.path.basename(file_path)}の変換中")
+            self.statusBar.showMessage(f"{os.path.basename(file_path)}の変換中({count+1}/{filenum})")
             QApplication.processEvents()
             if self.convert_webp_to_mp4(file_path, fps):
                 count += 1
-        mes = f"変換完了！"
+        mes = f"変換完了！({count}ファイル)"
         if count == 0:
             mes = f"エラー: webpファイルが存在しません"
-        elif count != len(self.file_paths):
-            mes = f"{len(self.file_paths)}ファイル中、{count}ファイルを変換しました"
+        elif count != filenum:
+            mes = f"{filenum}ファイル中、{count}ファイルを変換しました"
         self.proc_end(mes)
 
     def convert_webp_to_mp4(self, file_path, fps):
-        #mp4変換はwebpで複数フレームを保持する場合のみ
-        if not file_path.lower().endswith(".webp"): return False
+        #WebPだけじゃなく、画質は落ちるけどmp4もサポート
+        if not file_path.lower().endswith(SUPPORT_MOVIE_EXT): return False
         frames = imageio.mimread(file_path, memtest=False)
         if not frames: return False
 
         sloop = ""
+        # リバース処理: 0,1,2...30 → 30,29,28...2,1,0 に変換
+        if self.reverse_checkbox.isChecked():
+            frames.reverse()
+            sloop += "_rev"
         # ループ処理: 0,1,2...30 → 0,1,2...30,29,28...2,1 に変換
         if self.loop_checkbox.isChecked():
-            #frames += frames[-2::-1]  # 逆順のフレームを追加（最後のフレームは重複しないよう -2 から）
             frames += frames[len(frames)-2:1:-1] #上記の指定だと最後に0フレーム目が被ってる
-            sloop = "_loop"
+            sloop += "_loop"
 
         height, width, _ = frames[0].shape
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
@@ -320,15 +328,18 @@ class WebpAnim2Mp4(QMainWindow):
         output_file = os.path.splitext(file_path)[0] + f"_concati_{fps}fps{sdrop}.mp4"
         out = cv2.VideoWriter(output_file, fourcc, fps, (width, height))
 
+        filenum = len(self.file_paths)
+        count = 0 
         isFirstFile = True
         for file_path in self.file_paths:
-            self.statusBar.showMessage(f"{os.path.basename(file_path)}の結合中")
+            self.statusBar.showMessage(f"{os.path.basename(file_path)}の結合中({count+1}/{filenum})")
             QApplication.processEvents()
 
             if file_path.lower().endswith(SUPPORT_MOVIE_EXT):
                 frames = imageio.mimread(file_path, memtest=False)
-                if not frames: continue # 動画でないファイルであればスキップ
+                if not frames: continue # 動画でないファイルであればスキップ（最低でも1frameはあるはず）
 
+                count += 1
                 isFirstFrame = True
                 for frame in frames:
                     if not isFirstFile and isFirstFrame:
@@ -342,23 +353,24 @@ class WebpAnim2Mp4(QMainWindow):
 
             isFirstFile = False
         out.release()
-        self.proc_end(f"結合完了！")
+        self.proc_end(f"結合完了！({count}ファイル)")
 
     def to_picfile(self):
         if self.error_check(): return
         if self.cansel_movie_toolong(self.file_paths): return
         self.proc_start()
+        filenum = len(self.file_paths)
         count = 0 
         for file_path in self.file_paths:
-            self.statusBar.showMessage(f"{os.path.basename(file_path)}の処理中")
+            self.statusBar.showMessage(f"{os.path.basename(file_path)}の処理中({count+1}/{filenum})")
             QApplication.processEvents()
             if self.convert_movie_to_png(file_path):
                 count += 1
-        mes = f"処理完了！"
+        mes = f"処理完了！({count}ファイル)"
         if count == 0:
             mes = f"エラー: webp,mp4ファイルが存在しません"
-        elif count != len(self.file_paths):
-            mes = f"{len(self.file_paths)}ファイル中、{count}ファイルを処理しました"
+        elif count != filenum:
+            mes = f"{filenum}ファイル中、{count}ファイルを処理しました"
         self.proc_end(mes)
 
     def cansel_movie_toolong(self, file_paths):
@@ -423,6 +435,9 @@ class WebpAnim2Mp4(QMainWindow):
         dropchecked = pvsubfunc.read_value_from_config(SETTINGS_FILE, DROP_CHECKED)
         if dropchecked != None:
             self.drop_checkbox.setChecked(dropchecked)
+        reversechecked = pvsubfunc.read_value_from_config(SETTINGS_FILE, REVERSE_CHECKED)
+        if reversechecked != None:
+            self.reverse_checkbox.setChecked(reversechecked)
         loopchecked = pvsubfunc.read_value_from_config(SETTINGS_FILE, LOOP_CHECKED)
         if loopchecked != None:
             self.loop_checkbox.setChecked(loopchecked)
@@ -436,6 +451,7 @@ class WebpAnim2Mp4(QMainWindow):
         pvsubfunc.write_value_to_config(SETTINGS_FILE, GEOMETRY_W, self.geometry().width())
         pvsubfunc.write_value_to_config(SETTINGS_FILE, GEOMETRY_H, self.geometry().height())
         pvsubfunc.write_value_to_config(SETTINGS_FILE, DROP_CHECKED, self.drop_checkbox.isChecked())
+        pvsubfunc.write_value_to_config(SETTINGS_FILE, REVERSE_CHECKED, self.reverse_checkbox.isChecked())
         pvsubfunc.write_value_to_config(SETTINGS_FILE, LOOP_CHECKED, self.loop_checkbox.isChecked())
         pvsubfunc.write_value_to_config(SETTINGS_FILE, FRAME_RATE, self.fps_spinbox.value())
 
