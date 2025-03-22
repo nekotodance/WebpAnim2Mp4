@@ -3,7 +3,7 @@ import os
 import imageio.v2 as imageio
 import cv2
 import numpy as np
-from PyQt5.QtGui import QDragEnterEvent, QDropEvent, QIcon
+from PyQt5.QtGui import QDragEnterEvent, QDropEvent, QIcon, QColor
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog,
     QSpinBox, QCheckBox, QListWidget, QHBoxLayout, QStatusBar, QMainWindow,
@@ -63,6 +63,10 @@ class WebpAnim2Mp4(QMainWindow):
         self.button_delete = QPushButton("del", self)
         self.button_delete.setFixedSize(40,40)
         self.listBtnLayout.addWidget(self.button_delete)
+        self.listBtnLayout.addStretch()
+        self.button_flip = QPushButton("flp", self)
+        self.button_flip.setFixedSize(40,40)
+        self.listBtnLayout.addWidget(self.button_flip)
         self.listBtnLayout.addStretch()
         self.button_clear = QPushButton('clr')
         self.button_clear.setFixedSize(40,40)
@@ -136,10 +140,12 @@ class WebpAnim2Mp4(QMainWindow):
 
         self.file_list.installEventFilter(self)
         self.file_list.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
+        self.file_list.itemSelectionChanged.connect(self.change_selection_color)
 
         self.button_up.clicked.connect(self.list_item_moveup)
         self.button_down.clicked.connect(self.list_item_movedown)
         self.button_delete.clicked.connect(self.list_item_delete)
+        self.button_flip.clicked.connect(self.list_item_flip)
         self.button_concatinate.clicked.connect(self.concatinate_files)
         self.button_lastpic.clicked.connect(self.to_picfile)
         self.button_convert.clicked.connect(self.convert_files)
@@ -194,12 +200,21 @@ class WebpAnim2Mp4(QMainWindow):
         selected_rows = sorted([self.file_list.row(item) for item in selected_items])
         if selected_rows[0] == 0: return
 
+        old_position = self.file_list.verticalScrollBar().value()
         for row in selected_rows:
             item = self.file_list.takeItem(row)
             self.file_list.insertItem(row - 1, item)
             self.file_list.setCurrentRow(row - 1)
             item = self.file_paths.pop(row)
             self.file_paths.insert(row - 1, item)
+
+        #上移動の場合は2行の余白を残してリスト表示
+        top_position = self.file_list.verticalScrollBar().value()
+        row = selected_rows[0] - 1 - 2
+        if row < top_position:
+            self.file_list.verticalScrollBar().setValue(max(0,row))
+        else:
+            self.file_list.verticalScrollBar().setValue(old_position)
 
     def list_item_movedown(self):
         selected_items = self.file_list.selectedItems()
@@ -208,12 +223,24 @@ class WebpAnim2Mp4(QMainWindow):
         selected_rows = sorted([self.file_list.row(item) for item in selected_items], reverse=True)
         if selected_rows[0] == self.file_list.count() - 1: return
 
+        old_position = self.file_list.verticalScrollBar().value()
         for row in selected_rows:
             item = self.file_list.takeItem(row)
             self.file_list.insertItem(row + 1, item)
             self.file_list.setCurrentRow(row + 1)
             item = self.file_paths.pop(row)
             self.file_paths.insert(row + 1, item)
+
+        #下移動の場合は2行の余白を残してリスト表示
+        top_position = old_position
+        list_range = self.file_list.viewport().height() // self.file_list.sizeHintForRow(0)
+        if (self.file_list.viewport().height() % self.file_list.sizeHintForRow(0)) != 0:
+            list_range = list_range - 1
+        row = selected_rows[0] + 1 + 2
+        if row > top_position + list_range:
+            self.file_list.verticalScrollBar().setValue(min(self.file_list.verticalScrollBar().maximum(),row - list_range))
+        else:
+            self.file_list.verticalScrollBar().setValue(old_position)
 
     def list_item_delete(self):
         selected_items = self.file_list.selectedItems()
@@ -224,7 +251,39 @@ class WebpAnim2Mp4(QMainWindow):
             self.file_list.takeItem(row)
             self.file_paths.pop(row)
 
+        #削除の場合は削除した先頭した行が画面内に収まるようにしてリスト表示
+        row = row - 2
+        if row < 0:
+            row = 0
+        self.file_list.scrollToItem(self.file_list.item(row))
+
         self.statusBar.showMessage(f"{len(selected_rows)}ファイルをリストから削除しました")
+
+    def list_item_flip(self):
+        selected_items = self.file_list.selectedItems()
+        if not selected_items or len(selected_items) == 1:
+            self.statusBar.showMessage(f"2つ以上の連続した項目を選択してください")
+            return
+        #選択している項目が連続していない場合も何もしない
+        selected_indexes = sorted(self.file_list.row(item) for item in selected_items)
+        if selected_indexes != list(range(selected_indexes[0], selected_indexes[-1] + 1)):
+            self.statusBar.showMessage(f"選択している項目が連続していません")
+            return
+
+        position = self.file_list.verticalScrollBar().value()
+
+        start_row = selected_indexes[0]
+        reversed_items = [self.file_list.takeItem(i) for i in reversed(selected_indexes)]
+        for i, item in enumerate(reversed_items):
+            self.file_list.insertItem(start_row + i, item)
+            item.setSelected(True)
+        start_row = selected_indexes[0]
+        reversed_paths = [self.file_paths.pop(i) for i in reversed(selected_indexes)]
+        for i, item in enumerate(reversed_paths):
+            self.file_paths.insert(start_row + i, item)
+
+        self.file_list.verticalScrollBar().setValue(position)
+        self.statusBar.showMessage(f"{len(selected_items)}ファイルの順序を入れ替えました")
 
     def error_check(self):
         result = False
@@ -232,20 +291,43 @@ class WebpAnim2Mp4(QMainWindow):
             self.statusBar.showMessage(f"エラー: ファイルが選択されていません")
             return True
 
+    #リスト選択中のキーイベントフック処理
     def eventFilter(self, obj, event):
         if event.type() == QEvent.KeyPress:
             keyid = event.key()
-            if keyid in {Qt.Key_Delete, Qt.Key_Backspace, Qt.Key_R, Qt.Key_Up, Qt.Key_W, Qt.Key_Down, Qt.Key_S, Qt.Key_C}:
-                if keyid in (Qt.Key_Delete, Qt.Key_Backspace, Qt.Key_R):
-                    self.list_item_delete()
-                elif keyid in (Qt.Key_Up, Qt.Key_W):
-                    self.list_item_moveup()
-                elif keyid in (Qt.Key_Down, Qt.Key_S):
-                    self.list_item_movedown()
-                elif keyid == Qt.Key_C:
-                    self.clear_lists()
-                return True #eventを消費
+            self.key_press_func(keyid)
+            return True #常にKeyEventを消費に変更
         return super().eventFilter(obj, event)
+
+    #通常のキーイベント処理
+    def keyPressEvent(self, event):
+        keyid = event.key()
+        self.key_press_func(keyid)
+        super().keyPressEvent(event)
+
+    #実際のキー処理
+    def key_press_func(self, keyid):
+        if keyid in (Qt.Key_Delete, Qt.Key_Backspace, Qt.Key_R):
+            self.list_item_delete()
+        elif keyid in (Qt.Key_Up, Qt.Key_W):
+            self.list_item_moveup()
+        elif keyid in (Qt.Key_Down, Qt.Key_S):
+            self.list_item_movedown()
+        elif keyid== Qt.Key_F:
+            self.list_item_flip()
+        elif keyid == Qt.Key_C:
+            self.clear_lists()
+
+    def change_selection_color(self):
+        # すべてのアイテムの色をリセット
+        for i in range(self.file_list.count()):
+            item = self.file_list.item(i)
+            item.setBackground(QColor("#202224"))
+
+        # 選択されたアイテムの色を変更
+        selected_items = self.file_list.selectedItems()
+        for item in selected_items:
+            item.setBackground(QColor("202280"))
 
     def proc_start(self):
         self.setEnabled(False)
