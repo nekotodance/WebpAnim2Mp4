@@ -13,6 +13,8 @@ from PyQt5.QtCore import Qt, QEvent
 import pvsubfunc
 import math
 
+DEF_LIST_NUM = "listnum : "
+
 WINDOW_TITLE = "WebP Anim to MP4 Converter"
 SETTINGS_FILE = "WebpAnim2Mp4.json"
 GEOMETRY_X = "geometry-x"
@@ -76,6 +78,8 @@ class WebpAnim2Mp4(QMainWindow):
         self.layout.addLayout(self.listLayout)
 
         self.settingLayout1 = QHBoxLayout()
+        self.listnum = QLabel(f"{DEF_LIST_NUM}--", self)
+        self.settingLayout1.addWidget(self.listnum)
         self.settingLayout1.addStretch()
         self.settingLayout1.addWidget(QLabel("frame:", self))
         self.convertBtns = []
@@ -182,6 +186,8 @@ class WebpAnim2Mp4(QMainWindow):
                 self.file_list.addItem(os.path.basename(file_path))
                 dropnum += 1
         self.file_list.scrollToItem(self.file_list.item(self.file_list.count() - 1))
+
+        self.listnum.setText(f"{DEF_LIST_NUM}{self.file_list.count()}")
 
         mes = f"{dropnum}ファイルがドロップされました"
         if dropnum == 0:
@@ -362,19 +368,19 @@ class WebpAnim2Mp4(QMainWindow):
         frames = imageio.mimread(file_path, memtest=False)
         if not frames: return False
 
-        sloop = ""
+        soption = ""
         # リバース処理: 0,1,2...30 → 30,29,28...2,1,0 に変換
         if self.reverse_checkbox.isChecked():
             frames.reverse()
-            sloop += "_rev"
+            soption += "_rev"
         # ループ処理: 0,1,2...30 → 0,1,2...30,29,28...2,1 に変換
         if self.loop_checkbox.isChecked():
-            frames += frames[len(frames)-2:1:-1] #上記の指定だと最後に0フレーム目が被ってる
-            sloop += "_loop"
+            frames += frames[len(frames)-2:0:-1] #リストの後ろから2番目から、0の手前まで、逆向きの(-1)リスト
+            soption += "_loop"
 
         height, width, _ = frames[0].shape
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        output_file = os.path.splitext(file_path)[0] + f"_{fps}fps{sloop}.mp4"
+        output_file = os.path.splitext(file_path)[0] + f"_{fps}fps{soption}.mp4"
         out = cv2.VideoWriter(output_file, fourcc, fps, (width, height))
 
         for frame in frames:
@@ -393,9 +399,10 @@ class WebpAnim2Mp4(QMainWindow):
         if self.cansel_movie_toolong(self.file_paths): return
         self.proc_start()
         fps = self.fps_spinbox.value()
-        sdrop = ""
+
+        soption = ""
         if self.drop_checkbox.isChecked():
-            sdrop = "_drop"
+            soption += "_drop"
 
         #動画サイズは先頭ファイルで決定し、他は全て同じとする
         file_path = self.file_paths[0]
@@ -406,14 +413,20 @@ class WebpAnim2Mp4(QMainWindow):
             frame = cv2.imread(file_path)
             height, width, _ = frame.shape
 
+        concatilists = self.file_paths[:]
+        # ループ処理: 0,1,2...30 → 0,1,2...30,29,28...2,1 に変換
+        if self.loop_checkbox.isChecked():
+            concatilists += concatilists[len(concatilists)-2:0:-1] #リストの後ろから2番目から、0の手前まで、逆向きの(-1)リスト
+            soption += "_loop"
+
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        output_file = os.path.splitext(file_path)[0] + f"_concati_{fps}fps{sdrop}.mp4"
+        output_file = os.path.splitext(file_path)[0] + f"_concati_{fps}fps{soption}.mp4"
         out = cv2.VideoWriter(output_file, fourcc, fps, (width, height))
 
-        filenum = len(self.file_paths)
-        count = 0 
+        filenum = len(concatilists)
+        count = 0
         isFirstFile = True
-        for file_path in self.file_paths:
+        for file_path in concatilists:
             self.statusBar.showMessage(f"{os.path.basename(file_path)}の結合中({count+1}/{filenum})")
             QApplication.processEvents()
 
@@ -430,6 +443,7 @@ class WebpAnim2Mp4(QMainWindow):
                     frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
                     out.write(frame)
             else:
+                count += 1
                 frame = cv2.imread(file_path)
                 out.write(frame)
 
@@ -442,7 +456,7 @@ class WebpAnim2Mp4(QMainWindow):
         if self.cansel_movie_toolong(self.file_paths): return
         self.proc_start()
         filenum = len(self.file_paths)
-        count = 0 
+        count = 0
         for file_path in self.file_paths:
             self.statusBar.showMessage(f"{os.path.basename(file_path)}の処理中({count+1}/{filenum})")
             QApplication.processEvents()

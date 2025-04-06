@@ -1,25 +1,22 @@
-Write-Host "========================================"
-Write-Host "WebpAnim2Mp4"
-Write-Host "install start."
-Write-Host "========================================"
+#---- アプリごとに固有の部分 ----
+$appdispname = "WebpAnim2Mp4"
+$appfilename = "WebpAnim2Mp4"
+#$iconfilename = "res\" + $appfilename + ".ico"
+$pythonlibs = @("PyQt5", "imageio[ffmpeg,pyav]", "opencv-python")
+#---- アプリごとに固有の部分 ----
 
 $folder = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$exeFile = Join-Path $folder "venv\Scripts\pythonw.exe"
-$arguments = "WebpAnim2Mp4.py"
-$iconFile = Join-Path $folder "res\WebpAnim2Mp4.ico"
+$iconFile = Join-Path $folder $iconfilename
+$arguments = $appfilename + ".py"
+$shortcutName = $appfilename + ".lnk"
 $workingDirectory = $folder
-$shortcutName = "WebpAnim2Mp4.lnk"
 $shortcutPath = Join-Path $folder $shortcutName
+$exeFile = Join-Path $folder "venv\Scripts\pythonw.exe"
 
-# check if a shortcut already exists
-if (Test-Path $shortcutPath) {
-    Write-Host "========================================"
-    Write-Host "already exists '$shortcutName'."
-    Write-Host "Press any key to exit..."
-    Write-Host "========================================"
-    [void][System.Console]::ReadKey()
-    exit
-}
+Write-Host "========================================"
+Write-Host $appdispname
+Write-Host "install start."
+Write-Host "========================================"
 
 Write-Host "----------------------------------------"
 Write-Host "create python venv."
@@ -28,23 +25,32 @@ Write-Host "----------------------------------------"
 python -m venv venv
 
 Write-Host "install python library."
+Write-Host $pythonlibs
 Write-Host "----------------------------------------"
 # activate
 . .\venv\Scripts\activate.ps1
 # install python library
-python -m pip install PyQt5 imageio[ffmpeg,pyav] opencv-python
+python -m pip install $pythonlibs
 
 Write-Host "----------------------------------------"
 Write-Host "create shortcut file."
-Write-Host "----------------------------------------"
 # make shortcutfile
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = $exeFile
 $shortcut.Arguments = $arguments
-#$shortcut.IconLocation = $iconFile
+if (Test-Path Variable:\iconfilename) {
+    if (Test-Path $iconFile) {
+        $shortcut.IconLocation = $iconFile
+    } else {
+        Write-Host "icon file not exist."
+    }
+} else {
+    Write-Host "icon file skipped."
+}
 $shortcut.WorkingDirectory = $workingDirectory
 $shortcut.Save()
+Write-Host "----------------------------------------"
 
 $desktopPath = [System.Environment]::GetFolderPath('Desktop')
 $desktopShortcutPath = Join-Path $desktopPath $shortcutName
