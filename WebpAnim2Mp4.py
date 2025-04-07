@@ -57,20 +57,23 @@ class WebpAnim2Mp4(QMainWindow):
         self.listBtnLayout = QVBoxLayout()
         self.button_up = QPushButton("↑", self)
         self.button_up.setFixedSize(40,40)
+        self.set_button_StyleSheet(self.button_up)
         self.listBtnLayout.addWidget(self.button_up)
         self.button_down = QPushButton("↓", self)
         self.button_down.setFixedSize(40,40)
+        self.set_button_StyleSheet(self.button_down)
         self.listBtnLayout.addWidget(self.button_down)
+        self.listBtnLayout.addStretch()
+        self.button_flip = QPushButton("flp", self)
+        self.button_flip.setFixedSize(40,40)
+        self.set_button_StyleSheet(self.button_flip)
+        self.listBtnLayout.addWidget(self.button_flip)
         self.listBtnLayout.addStretch()
         self.button_delete = QPushButton("del", self)
         self.button_delete.setFixedSize(40,40)
         self.listBtnLayout.addWidget(self.button_delete)
         self.listBtnLayout.addStretch()
-        self.button_flip = QPushButton("flp", self)
-        self.button_flip.setFixedSize(40,40)
-        self.listBtnLayout.addWidget(self.button_flip)
-        self.listBtnLayout.addStretch()
-        self.button_clear = QPushButton('clr')
+        self.button_clear = QPushButton('CLR')
         self.button_clear.setFixedSize(40,40)
         self.listBtnLayout.addWidget(self.button_clear)
         self.listBtnLayout.addStretch()
@@ -167,6 +170,16 @@ class WebpAnim2Mp4(QMainWindow):
             self.load_settings()
 
         self.file_paths = []  # ファイルパスのリスト
+
+    def set_button_StyleSheet(self, button):
+        button.setStyleSheet(
+            """
+            QPushButton {
+                background-color: #BBBBBB;  /* 背景色 */
+                color: black;  /* 文字色 */
+            }
+            """
+        )
 
     def closeEvent(self, event):
         self.save_settings()
