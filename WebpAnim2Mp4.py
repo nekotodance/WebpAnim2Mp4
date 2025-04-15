@@ -43,7 +43,7 @@ class WebpAnim2Mp4(QMainWindow):
         # ウィンドウ設定
         self.setWindowTitle(WINDOW_TITLE)
         self.setGeometry(100, 100, APP_WIDTH, APP_HEIGHT)
-        #self.setWindowIcon(QIcon("res/WebpAnim2Mp4.ico"))
+        self.setWindowIcon(QIcon("res/WebpAnim2Mp4.ico"))
         self.setAcceptDrops(True)
 
         # UIレイアウト
