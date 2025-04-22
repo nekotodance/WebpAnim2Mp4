@@ -1,7 +1,8 @@
-import json
-import datetime
+import json, datetime, os
 from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
+from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
+from PyQt5.QtCore import QUrl
 
 #デバッグ用のコードの有効無効切り替え 0:無効、1:有効
 _IS_DEBUG = 0
@@ -14,12 +15,15 @@ def dbgprint(message):
         # print message
         print(f"[{timestamp}] {message}")
 
-#json形式の設定ファイルから指定されたキーの値を読み込む
-def read_value_from_config(config_file, key):
+#json形式の設定ファイルから指定されたキーの値を読み込む（初期値指定あり）
+def read_value_from_config(config_file, key, defvalue=None):
     try:
         with open(config_file, 'r', encoding='utf-8') as f:
             config_data = json.load(f)
-        return config_data.get(key, None)
+        result = config_data.get(key, None)
+        if result == None and defvalue != None:
+            result = defvalue
+        return result
 
     except FileNotFoundError:
         print(f"エラー: 設定ファイルが見つかりません: {config_file}")
@@ -45,6 +49,48 @@ def write_value_to_config(config_file, key, value):
         print(f"エラー: 設定ファイルへの書き込み中に問題が発生しました: {e}")
         return False
 
+#json形式の設定ファイルから指定されたlistの値を読み込む
+def read_list_from_config(config_file, key):
+    try:
+        with open(config_file, 'r', encoding='utf-8') as f:
+            config_data = json.load(f)
+
+        if key not in config_data:
+            print(f"エラー: キー '{key}' が設定ファイルに存在しません")
+            return None
+        if not isinstance(config_data[key], list):
+            print(f"エラー: キー '{key}' の内容がリスト型ではありません")
+            return None
+
+        return config_data.get(key, None)
+
+    except FileNotFoundError:
+        print(f"エラー: 設定ファイルが見つかりません: {config_file}")
+        return None
+    except json.JSONDecodeError:
+        print(f"エラー: 設定ファイルが正しいjson形式ではありません: {config_file}")
+        return None
+
+#json形式の設定ファイルへ指定されたキーの値を書き込む
+def write_list_from_config(config_file, key, datalist):
+    if not isinstance(datalist, list):
+        print(f"エラー: data_listはリスト型である必要があります: {e}")
+        return False
+
+    try:
+        try:
+            with open(config_file, 'r', encoding='utf-8') as f:
+                config_data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            config_data = {}
+        config_data[key] = datalist
+        with open(config_file, 'w', encoding='utf-8') as f:
+            json.dump(config_data, f, ensure_ascii=False, indent=4)
+        return True
+    except Exception as e:
+        print(f"エラー: 設定ファイルへの書き込み中に問題が発生しました: {e}")
+        return False
+
 #文字列内のダブルバックスラッシュ (\\) をシングルバックスラッシュ (\) に置換
 def replace_double_backslash(input_string):
     return input_string.replace("\\\\", "\\")
@@ -56,7 +102,6 @@ def normalize_newlines(text, newline="\n"):
     normalized_text = normalized_text.replace("\n", newline)
     # 必要に応じて統一改行文字に置き換える
     return normalized_text
-
 """
 # 使用例
 input_text = "Hello\r\nWorld!\rThis is a test.\nNewline normalization."
@@ -123,7 +168,6 @@ def add_around_all(text, target, prefix, suffix):
         start_index = index + len(target)
 
     return result
-
 """
 # 使用例
 original_text = "abcdefghijklmnopqrstu"
@@ -161,7 +205,6 @@ def extract_between(text, char_a, char_b):
         start_index = end_index + len(char_b)
 
     return results
-
 """
 # 使用例
 original_text = "Here is <tag>content1</tag> and <tag>content2</tag>."
@@ -173,3 +216,19 @@ print(result)
 #結果
 ['content1', 'content2']
 """
+
+# サウンド再生
+def play_wave(file_path):
+    #空指定の場合には何もしない
+    if not file_path: return
+    if not os.path.exists(file_path): return
+    #QSoundだとちょっと引っ掛かりがあるのでQMediaPlayerに変更
+    player = QMediaPlayer()
+    player.setMedia(QMediaContent(QUrl.fromLocalFile(file_path)))
+    player.mediaStatusChanged.connect(lambda status: handle_media_status(status, player))
+    player.play()
+
+# 再生後の後処理
+def handle_media_status(status, player):
+    if status == QMediaPlayer.EndOfMedia:
+        player.deleteLater()

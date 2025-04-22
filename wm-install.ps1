@@ -2,7 +2,6 @@
 $appdispname = "WebpAnim2Mp4"
 $appfilename = "WebpAnim2Mp4"
 $iconfilename = "res\" + $appfilename + ".ico"
-$pythonlibs = @("PyQt5", "imageio[ffmpeg,pyav]", "opencv-python")
 #---- アプリごとに固有の部分 ----
 
 $folder = Split-Path -Parent $MyInvocation.MyCommand.Definition
@@ -25,12 +24,11 @@ Write-Host "----------------------------------------"
 python -m venv venv
 
 Write-Host "install python library."
-Write-Host $pythonlibs
 Write-Host "----------------------------------------"
 # activate
 . .\venv\Scripts\activate.ps1
 # install python library
-python -m pip install $pythonlibs
+python -m pip install -r requirements.txt
 
 Write-Host "----------------------------------------"
 Write-Host "create shortcut file."

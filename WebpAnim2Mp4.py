@@ -14,6 +14,8 @@ import pvsubfunc
 import math
 
 DEF_LIST_NUM = "listnum : "
+DEF_SOUND_OK = "ok.wav"
+DEF_SOUND_NG = "ng.wav"
 
 WINDOW_TITLE = "WebP Anim to MP4 Converter"
 SETTINGS_FILE = "WebpAnim2Mp4.json"
@@ -25,6 +27,8 @@ REVERSE_CHECKED = "reverse-checked"
 LOOP_CHECKED = "loop-checked"
 DROP_CHECKED = "drop-checked"
 FRAME_RATE = "frame-rate"
+SOUND_FILE_OK = "sound-file-ok"
+SOUND_FILE_NG = "sound-file-ng"
 APP_WIDTH = 480
 APP_HEIGHT = 320
 DEF_FRAME_RATE = 15
@@ -165,11 +169,15 @@ class WebpAnim2Mp4(QMainWindow):
         self.setStatusBar(self.statusBar)
         self.statusBar.showMessage(f"動画や画像ファイルをドラッグドロップしてください")
 
+        self.soundOK = DEF_SOUND_OK
+        self.soundNG = DEF_SOUND_NG
+
         #設定ファイルがあれば読み込み
         if os.path.exists(SETTINGS_FILE):
             self.load_settings()
 
         self.file_paths = []  # ファイルパスのリスト
+        self.pydir = os.path.dirname(os.path.abspath(__file__))
 
     def set_button_StyleSheet(self, button):
         button.setStyleSheet(
@@ -208,6 +216,7 @@ class WebpAnim2Mp4(QMainWindow):
             for ext in SUPPORT_INPUT_EXT:
                 exts += ext.replace(".","") + ","
             mes = f"エラー: {exts[:-1]}ファイル以外は対応していません"
+            self.play_wave(self.soundNG)
         elif dropnum != listnum:
             mes += f"（{listnum-dropnum}ファイルは対象外）"
         self.statusBar.showMessage(mes)
@@ -308,6 +317,7 @@ class WebpAnim2Mp4(QMainWindow):
         result = False
         if not self.file_paths:
             self.statusBar.showMessage(f"エラー: ファイルが選択されていません")
+            self.play_wave(self.soundNG)
             return True
 
     #リスト選択中のキーイベントフック処理
@@ -362,17 +372,26 @@ class WebpAnim2Mp4(QMainWindow):
         self.proc_start()
         fps = self.fps_spinbox.value()
         filenum = len(self.file_paths)
-        count = 0 
+        count = 0
         for file_path in self.file_paths:
+            if not os.path.exists(file_path): continue  #一応なかった時はスキップ
+
             self.statusBar.showMessage(f"{os.path.basename(file_path)}の変換中({count+1}/{filenum})")
             QApplication.processEvents()
             if self.convert_webp_to_mp4(file_path, fps):
                 count += 1
         mes = f"変換完了！({count}ファイル)"
+        isSuccess = True
         if count == 0:
             mes = f"エラー: webpファイルが存在しません"
+            isSuccess = False
         elif count != filenum:
             mes = f"{filenum}ファイル中、{count}ファイルを変換しました"
+
+        if isSuccess:
+            self.play_wave(self.soundOK)
+        else:
+            self.play_wave(self.soundNG)
         self.proc_end(mes)
 
     def convert_webp_to_mp4(self, file_path, fps):
@@ -410,6 +429,11 @@ class WebpAnim2Mp4(QMainWindow):
     def concatinate_files(self):
         if self.error_check(): return
         if self.cansel_movie_toolong(self.file_paths): return
+        if not os.path.exists(self.file_paths[0]):
+            self.statusBar.showMessage(f"エラー: サイズを取得する先頭ファイルが存在しません")
+            self.play_wave(self.soundNG)
+            return
+
         self.proc_start()
         fps = self.fps_spinbox.value()
 
@@ -440,6 +464,8 @@ class WebpAnim2Mp4(QMainWindow):
         count = 0
         isFirstFile = True
         for file_path in concatilists:
+            if not os.path.exists(file_path): continue  #一応なかった時はスキップ
+
             self.statusBar.showMessage(f"{os.path.basename(file_path)}の結合中({count+1}/{filenum})")
             QApplication.processEvents()
 
@@ -462,6 +488,7 @@ class WebpAnim2Mp4(QMainWindow):
 
             isFirstFile = False
         out.release()
+        self.play_wave(self.soundOK)
         self.proc_end(f"結合完了！({count}ファイル)")
 
     def to_picfile(self):
@@ -471,15 +498,24 @@ class WebpAnim2Mp4(QMainWindow):
         filenum = len(self.file_paths)
         count = 0
         for file_path in self.file_paths:
+            if not os.path.exists(file_path): continue  #一応なかった時はスキップ
+
             self.statusBar.showMessage(f"{os.path.basename(file_path)}の処理中({count+1}/{filenum})")
             QApplication.processEvents()
             if self.convert_movie_to_png(file_path):
                 count += 1
         mes = f"処理完了！({count}ファイル)"
+        isSuccess = True
         if count == 0:
             mes = f"エラー: webp,mp4ファイルが存在しません"
+            isSuccess = False
         elif count != filenum:
             mes = f"{filenum}ファイル中、{count}ファイルを処理しました"
+
+        if isSuccess:
+            self.play_wave(self.soundOK)
+        else:
+            self.play_wave(self.soundNG)
         self.proc_end(mes)
 
     def cansel_movie_toolong(self, file_paths):
@@ -487,6 +523,8 @@ class WebpAnim2Mp4(QMainWindow):
         self.statusBar.showMessage(f"入力ファイルをチェック中")
         QApplication.processEvents()
         for file_path in self.file_paths:
+            if not os.path.exists(file_path): continue  #一応なかった時はスキップ
+
             if not file_path.lower().endswith(SUPPORT_MOVIE_EXT): continue
             #framenum = len(imageio.mimread(file_path, memtest=False))
             reader = imageio.get_reader(file_path)
@@ -554,6 +592,9 @@ class WebpAnim2Mp4(QMainWindow):
         if framerate != None:
             self.fps_spinbox.setValue(framerate)
 
+        self.soundOK = pvsubfunc.read_value_from_config(SETTINGS_FILE, SOUND_FILE_OK, DEF_SOUND_OK)
+        self.soundNG = pvsubfunc.read_value_from_config(SETTINGS_FILE, SOUND_FILE_NG, DEF_SOUND_NG)
+
     def save_settings(self):
         pvsubfunc.write_value_to_config(SETTINGS_FILE, GEOMETRY_X, self.geometry().x())
         pvsubfunc.write_value_to_config(SETTINGS_FILE, GEOMETRY_Y, self.geometry().y())
@@ -563,6 +604,15 @@ class WebpAnim2Mp4(QMainWindow):
         pvsubfunc.write_value_to_config(SETTINGS_FILE, REVERSE_CHECKED, self.reverse_checkbox.isChecked())
         pvsubfunc.write_value_to_config(SETTINGS_FILE, LOOP_CHECKED, self.loop_checkbox.isChecked())
         pvsubfunc.write_value_to_config(SETTINGS_FILE, FRAME_RATE, self.fps_spinbox.value())
+
+        pvsubfunc.write_value_to_config(SETTINGS_FILE, SOUND_FILE_OK, self.soundOK)
+        pvsubfunc.write_value_to_config(SETTINGS_FILE, SOUND_FILE_NG, self.soundNG)
+
+    # サウンド再生
+    def play_wave(self, file_name):
+        if not file_name: return
+        file_path = f"{self.pydir}/{file_name}"
+        pvsubfunc.play_wave(file_path)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

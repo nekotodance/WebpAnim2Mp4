@@ -1,4 +1,4 @@
-## WebpAnim2Mp4について 0.2.5
+## WebpAnim2Mp4について 0.2.6
 WebPのアニメーションファイルをmp4に変換します  
 また動画や画像を結合してmp4として出力できます  
 
@@ -35,7 +35,7 @@ WebPのアニメーションファイルをmp4に変換します
 - gitでリポジトリを取得  
 `git clone https://github.com/nekotodance/WebpAnim2Mp4`
 - 必要なライブラリ  
-`pip install PyQt5 imageio[ffmpeg,pyav] opencv-python`
+`pip install -r requirements.txt`
 - 実行方法  
 `Python WebpAnim2Mp4.py`
 
@@ -105,6 +105,7 @@ WebPのアニメーションファイルをmp4に変換します
 ![WebpAnim2Mp4-image](docs/WebpAnim2Mp4-image003.jpg)
 
 ## 変更履歴
+- 0.2.6 サウンドとエラー処理を追加、pipライブラリのバージョンを固定に修正
 - 0.2.5 アイコンを追加
 - 0.2.4 ボタンの順序と色を変更
 - 0.2.3 loop指定時に1フレーム少なくなっていた不具合修正、結合モードでもloop指定を有効、他
