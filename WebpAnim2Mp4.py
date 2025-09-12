@@ -130,6 +130,9 @@ class WebpAnim2Mp4(QMainWindow):
         self.button_lastpic = QPushButton('画像化')
         self.button_lastpic.setFixedHeight(40)  # ボタンの高さを調整
         self.buttonLayout.addWidget(self.button_lastpic)
+        self.button_lastpic2 = QPushButton('画像化(最初と最後のみ)')
+        self.button_lastpic2.setFixedHeight(40)  # ボタンの高さを調整
+        self.buttonLayout.addWidget(self.button_lastpic2)
         self.buttonLayout.addStretch()
         self.button_convert = QPushButton("変換", self)
         self.button_convert.setFixedHeight(40)
@@ -158,7 +161,8 @@ class WebpAnim2Mp4(QMainWindow):
         self.button_delete.clicked.connect(self.list_item_delete)
         self.button_flip.clicked.connect(self.list_item_flip)
         self.button_concatinate.clicked.connect(self.concatinate_files)
-        self.button_lastpic.clicked.connect(self.to_picfile)
+        self.button_lastpic.clicked.connect(self.to_pic_click)
+        self.button_lastpic2.clicked.connect(self.to_pic_click2)
         self.button_convert.clicked.connect(self.convert_files)
         self.button_clear.clicked.connect(self.clear_lists)
         for i in range(len(FRAME_LIST)):
@@ -286,6 +290,7 @@ class WebpAnim2Mp4(QMainWindow):
         self.file_list.scrollToItem(self.file_list.item(row))
 
         self.statusBar.showMessage(f"{len(selected_rows)}ファイルをリストから削除しました")
+        self.listnum.setText(f"{DEF_LIST_NUM}{self.file_list.count()}")
 
     def list_item_flip(self):
         selected_items = self.file_list.selectedItems()
@@ -491,7 +496,12 @@ class WebpAnim2Mp4(QMainWindow):
         self.play_wave(self.soundOK)
         self.proc_end(f"結合完了！({count}ファイル)")
 
-    def to_picfile(self):
+    def to_pic_click(self):
+        self.to_picfile(True)
+    def to_pic_click2(self):
+        self.to_picfile(False)  #全体ではなく、先頭と最終フレームのみの画像化
+
+    def to_picfile(self, isAll):
         if self.error_check(): return
         if self.cansel_movie_toolong(self.file_paths): return
         self.proc_start()
@@ -502,7 +512,7 @@ class WebpAnim2Mp4(QMainWindow):
 
             self.statusBar.showMessage(f"{os.path.basename(file_path)}の処理中({count+1}/{filenum})")
             QApplication.processEvents()
-            if self.convert_movie_to_png(file_path):
+            if self.convert_movie_to_png(file_path, isAll):
                 count += 1
         mes = f"処理完了！({count}ファイル)"
         isSuccess = True
@@ -550,7 +560,7 @@ class WebpAnim2Mp4(QMainWindow):
 
         return False
 
-    def convert_movie_to_png(self, file_path):
+    def convert_movie_to_png(self, file_path, isAll=True):
         #画像化はwebpで複数フレームを保持する場合のみ
         if not file_path.lower().endswith(SUPPORT_MOVIE_EXT): return False
         frames = imageio.mimread(file_path, memtest=False)
@@ -566,10 +576,20 @@ class WebpAnim2Mp4(QMainWindow):
         flameno = 0
         picname = f"{os.path.splitext(os.path.basename(file_path))[0]}"
         picname = f"{picdir}/{picname}_frame"
-        for frame in frames:
+        if isAll:
+            for frame in frames:
+                output_file = f"{picname}{str(flameno).zfill(padding)}.png"
+                imageio.imwrite(output_file, frame)
+                flameno += 1
+        else:
+            flameno = 0
+            frame = frames[flameno]
             output_file = f"{picname}{str(flameno).zfill(padding)}.png"
             imageio.imwrite(output_file, frame)
-            flameno += 1
+            flameno = len(frames) - 1
+            frame = frames[flameno]
+            output_file = f"{picname}{str(flameno).zfill(padding)}.png"
+            imageio.imwrite(output_file, frame)
         return True
 
     def load_settings(self):
