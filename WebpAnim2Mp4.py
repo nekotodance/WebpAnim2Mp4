@@ -510,9 +510,10 @@ class WebpAnim2Mp4(QMainWindow):
         for file_path in self.file_paths:
             if not os.path.exists(file_path): continue  #一応なかった時はスキップ
 
-            self.statusBar.showMessage(f"{os.path.basename(file_path)}の処理中({count+1}/{filenum})")
-            QApplication.processEvents()
-            if self.convert_movie_to_png(file_path, isAll):
+            showmsg = f"{os.path.basename(file_path)}の処理中({count+1}/{filenum})"
+            #self.statusBar.showMessage(showmsg)
+            #QApplication.processEvents()
+            if self.convert_movie_to_png(file_path, showmsg, isAll):
                 count += 1
         mes = f"処理完了！({count}ファイル)"
         isSuccess = True
@@ -560,7 +561,7 @@ class WebpAnim2Mp4(QMainWindow):
 
         return False
 
-    def convert_movie_to_png(self, file_path, isAll=True):
+    def convert_movie_to_png(self, file_path, msg, isAll=True):
         #画像化はwebpで複数フレームを保持する場合のみ
         if not file_path.lower().endswith(SUPPORT_MOVIE_EXT): return False
         frames = imageio.mimread(file_path, memtest=False)
@@ -578,6 +579,8 @@ class WebpAnim2Mp4(QMainWindow):
         picname = f"{picdir}/{picname}_frame"
         if isAll:
             for frame in frames:
+                self.statusBar.showMessage(f"{msg}-{flameno}")
+                QApplication.processEvents()
                 output_file = f"{picname}{str(flameno).zfill(padding)}.png"
                 imageio.imwrite(output_file, frame)
                 flameno += 1
