@@ -511,8 +511,8 @@ class WebpAnim2Mp4(QMainWindow):
             if not os.path.exists(file_path): continue  #一応なかった時はスキップ
 
             showmsg = f"{os.path.basename(file_path)}の処理中({count+1}/{filenum})"
-            #self.statusBar.showMessage(showmsg)
-            #QApplication.processEvents()
+            self.statusBar.showMessage(showmsg)
+            QApplication.processEvents()
             if self.convert_movie_to_png(file_path, showmsg, isAll):
                 count += 1
         mes = f"処理完了！({count}ファイル)"
