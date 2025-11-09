@@ -17,7 +17,7 @@ DEF_LIST_NUM = "listnum : "
 DEF_SOUND_OK = "ok.wav"
 DEF_SOUND_NG = "ng.wav"
 
-WINDOW_TITLE = "WebP Anim to MP4 Converter"
+WINDOW_TITLE = "WebP Anim to MP4 Converter 0.2.10"
 SETTINGS_FILE = "WebpAnim2Mp4.json"
 GEOMETRY_X = "geometry-x"
 GEOMETRY_Y = "geometry-y"
@@ -34,8 +34,8 @@ APP_HEIGHT = 320
 DEF_FRAME_RATE = 15
 MOVIE_TOOLONG = 1200    #このframe数を超える動画が入力された場合警告を行う
 
-SUPPORT_INPUT_EXT = (".png", ".jpg", ".webp", ".mp4")
-SUPPORT_MOVIE_EXT = (".webp", ".mp4")
+SUPPORT_INPUT_EXT = (".png", ".jpg", ".webp", ".mp4", ".gif")
+SUPPORT_MOVIE_EXT = (".webp", ".mp4", ".gif")
 
 #良く使いそうなフレームレートをボタンで選択可能としておく
 FRAME_LIST = (10,15,30,60)
