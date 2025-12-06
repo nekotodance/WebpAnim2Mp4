@@ -17,7 +17,7 @@ DEF_LIST_NUM = "listnum : "
 DEF_SOUND_OK = "ok.wav"
 DEF_SOUND_NG = "ng.wav"
 
-WINDOW_TITLE = "WebP Anim to MP4 Converter 0.2.10"
+WINDOW_TITLE = "WebP Anim to MP4 Converter 0.2.11"
 SETTINGS_FILE = "WebpAnim2Mp4.json"
 GEOMETRY_X = "geometry-x"
 GEOMETRY_Y = "geometry-y"
@@ -26,6 +26,7 @@ GEOMETRY_H = "geometry-h"
 REVERSE_CHECKED = "reverse-checked"
 LOOP_CHECKED = "loop-checked"
 DROP_CHECKED = "drop-checked"
+DROPLOOP_CHECKED = "droploop-checked"
 FRAME_RATE = "frame-rate"
 SOUND_FILE_OK = "sound-file-ok"
 SOUND_FILE_NG = "sound-file-ng"
@@ -104,6 +105,10 @@ class WebpAnim2Mp4(QMainWindow):
         self.settingLayout2 = QHBoxLayout()
         self.drop_checkbox = QCheckBox("drop first frame", self)
         self.settingLayout2.addWidget(self.drop_checkbox)
+        self.drop_checkbox.stateChanged.connect(self.handle_droploop_checkbox_change)
+        self.droploop_checkbox = QCheckBox("target first file", self)
+        self.settingLayout2.addWidget(self.droploop_checkbox)
+
         self.settingLayout2.addStretch()
         self.reverse_checkbox = QCheckBox("reverse", self)
         self.settingLayout2.addWidget(self.reverse_checkbox)
@@ -318,6 +323,12 @@ class WebpAnim2Mp4(QMainWindow):
         self.file_list.verticalScrollBar().setValue(position)
         self.statusBar.showMessage(f"{len(selected_items)}ファイルの順序を入れ替えました")
 
+    def handle_droploop_checkbox_change(self, state):
+        if state == Qt.Checked:
+            self.droploop_checkbox.setEnabled(True)
+        elif state == Qt.Unchecked:
+            self.droploop_checkbox.setEnabled(False)
+
     def error_check(self):
         result = False
         if not self.file_paths:
@@ -445,6 +456,9 @@ class WebpAnim2Mp4(QMainWindow):
         soption = ""
         if self.drop_checkbox.isChecked():
             soption += "_drop"
+            #drop first frameが有効な場合のみ有効となる
+            if self.droploop_checkbox.isChecked():
+                soption += "_dropfirst"
 
         #動画サイズは先頭ファイルで決定し、他は全て同じとする
         file_path = self.file_paths[0]
@@ -467,7 +481,7 @@ class WebpAnim2Mp4(QMainWindow):
 
         filenum = len(concatilists)
         count = 0
-        isFirstFile = True
+        isFirstFile = not self.droploop_checkbox.isChecked()
         for file_path in concatilists:
             if not os.path.exists(file_path): continue  #一応なかった時はスキップ
 
@@ -481,7 +495,7 @@ class WebpAnim2Mp4(QMainWindow):
                 count += 1
                 isFirstFrame = True
                 for frame in frames:
-                    if not isFirstFile and isFirstFrame:
+                    if self.drop_checkbox.isChecked() and not isFirstFile and isFirstFrame:
                         isFirstFrame = False
                         continue
                     frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
@@ -605,6 +619,9 @@ class WebpAnim2Mp4(QMainWindow):
         dropchecked = pvsubfunc.read_value_from_config(SETTINGS_FILE, DROP_CHECKED)
         if dropchecked != None:
             self.drop_checkbox.setChecked(dropchecked)
+        droploopchecked = pvsubfunc.read_value_from_config(SETTINGS_FILE, DROPLOOP_CHECKED)
+        if droploopchecked != None:
+            self.droploop_checkbox.setChecked(droploopchecked)
         reversechecked = pvsubfunc.read_value_from_config(SETTINGS_FILE, REVERSE_CHECKED)
         if reversechecked != None:
             self.reverse_checkbox.setChecked(reversechecked)
@@ -624,6 +641,7 @@ class WebpAnim2Mp4(QMainWindow):
         pvsubfunc.write_value_to_config(SETTINGS_FILE, GEOMETRY_W, self.geometry().width())
         pvsubfunc.write_value_to_config(SETTINGS_FILE, GEOMETRY_H, self.geometry().height())
         pvsubfunc.write_value_to_config(SETTINGS_FILE, DROP_CHECKED, self.drop_checkbox.isChecked())
+        pvsubfunc.write_value_to_config(SETTINGS_FILE, DROPLOOP_CHECKED, self.droploop_checkbox.isChecked())
         pvsubfunc.write_value_to_config(SETTINGS_FILE, REVERSE_CHECKED, self.reverse_checkbox.isChecked())
         pvsubfunc.write_value_to_config(SETTINGS_FILE, LOOP_CHECKED, self.loop_checkbox.isChecked())
         pvsubfunc.write_value_to_config(SETTINGS_FILE, FRAME_RATE, self.fps_spinbox.value())
