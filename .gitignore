@@ -2,6 +2,8 @@ WebpAnim2Mp4.lnk
 WebpAnim2Mp4.json
 venv/
 temp/
+old/
+.vscode/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
