@@ -17,7 +17,7 @@ DEF_LIST_NUM = "listnum : "
 DEF_SOUND_OK = "ok.wav"
 DEF_SOUND_NG = "ng.wav"
 
-WINDOW_TITLE = "WebP Anim to MP4 Converter 0.2.11"
+WINDOW_TITLE = "WebP Anim to MP4 Converter 0.2.12"
 SETTINGS_FILE = "WebpAnim2Mp4.json"
 GEOMETRY_X = "geometry-x"
 GEOMETRY_Y = "geometry-y"
