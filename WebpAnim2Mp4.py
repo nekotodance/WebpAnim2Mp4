@@ -35,8 +35,8 @@ APP_HEIGHT = 320
 DEF_FRAME_RATE = 15
 MOVIE_TOOLONG = 1200    #このframe数を超える動画が入力された場合警告を行う
 
-SUPPORT_INPUT_EXT = (".png", ".jpg", ".webp", ".mp4", ".gif")
-SUPPORT_MOVIE_EXT = (".webp", ".mp4", ".gif")
+SUPPORT_INPUT_EXT = (".png", ".jpg", ".webp", ".mp4", ".gif", ".webm", ".mkv")
+SUPPORT_MOVIE_EXT = (".webp", ".mp4", ".gif", ".webm", ".mkv")
 
 #良く使いそうなフレームレートをボタンで選択可能としておく
 FRAME_LIST = (10,15,30,60)
